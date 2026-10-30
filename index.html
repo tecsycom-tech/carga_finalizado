@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Generador de Carga de Finalizados - PERÚFIBRA / TECSYCOM</title>
+
+  <!-- Favicon para la pestaña del navegador (Icono Seriación / Hoja de Cálculo Excel) -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='8' y='4' width='48' height='56' rx='8' fill='%2310b981'/%3E%3Cpath d='M18 16h28M18 24h28' stroke='%23ffffff' stroke-width='3.5' stroke-linecap='round'/%3E%3Crect x='18' y='32' width='6' height='16' rx='1' fill='%23ffffff'/%3E%3Crect x='27' y='32' width='3' height='16' rx='1' fill='%23ffffff'/%3E%3Crect x='33' y='32' width='7' height='16' rx='1' fill='%23ffffff'/%3E%3Crect x='43' y='32' width='3' height='16' rx='1' fill='%23ffffff'/%3E%3C/svg%3E">
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS para lectura y escritura de Excel / CSV -->
@@ -468,7 +472,7 @@
         const isVisible = TARGET_VISIBLE_COLUMNS.includes(colName);
         return {
           wch: Math.max(colName.length + 5, 12),
-          hidden: !isVisible // Oculta nativamente en Excel (fecha_gestion permanece oculta)
+          hidden: !isVisible // Oculta nativamente en Excel
         };
       });
 
