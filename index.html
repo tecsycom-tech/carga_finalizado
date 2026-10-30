@@ -192,11 +192,10 @@
       "Distrito": "Distrito",
       "Campaña": "Paquete",
       "F_Asignacion": "fecha_programacion",
-      "Fecha_Gestion": "fec_programacion",
-      "fecha_programacion": "fecha_Gestion"
+      "Fecha_Gestion": "fec_programacion"
     };
 
-    // Columnas obligatorias adicionales que los sistemas de validación suelen exigir
+    // Columnas obligatorias adicionales exigidas por sistemas de validación externa
     const MANDATORY_SYSTEM_COLUMNS = [
       "tipo de validaciones",
       "gestion diaria",
@@ -303,9 +302,8 @@
       });
 
       let originalHeaders = Array.from(originalHeaderSet);
-      let existingHeaderNamesLower = new Set(originalHeaders.map(h => h.toLowerCase()));
 
-      // 2. Construir la lista final asegurando que existan las obligatorias del sistema
+      // 2. Construir la lista final de columnas
       let finalHeaderList = [...TARGET_VISIBLE_COLUMNS];
       let existingTargetNames = new Set(TARGET_VISIBLE_COLUMNS.map(c => c.toLowerCase()));
 
@@ -318,16 +316,16 @@
         }
       });
 
-      // Asegurar que las columnas obligatorias del sistema estén presentes (si no venían, se crean)
+      // Asegurar que las columnas obligatorias del sistema (incluida fecha_gestion) estén presentes
       MANDATORY_SYSTEM_COLUMNS.forEach(mandCol => {
-        if (!originalHeaders.some(h => h.toLowerCase() === mandCol.toLowerCase())) {
+        if (!finalHeaderList.some(h => h.toLowerCase() === mandCol.toLowerCase())) {
           finalHeaderList.push(mandCol);
         }
       });
 
       allDetectedColumns = finalHeaderList;
 
-      // 3. Mapear datos por fila
+      // 3. Mapear datos por fila y aplicar reglas de transformación
       processedDataAll = rawData.map(row => {
         let newRow = {};
         let cleanRow = {};
@@ -356,6 +354,13 @@
             newRow[col] = origMatch && cleanRow[origMatch] !== undefined ? String(cleanRow[origMatch]).trim() : "";
           }
         });
+
+        // REGLA 1: Duplicar fecha_programacion en fecha_gestion
+        const fechaProgVal = newRow["fecha_programacion"] || cleanRow["fecha_programacion"] || cleanRow["F_Asignacion"] || "";
+        newRow["fecha_gestion"] = fechaProgVal;
+
+        // REGLA 2: Asignar "ALTA NUEVA" a la columna tipo_alta
+        newRow["tipo_alta"] = "ALTA NUEVA";
 
         return newRow;
       });
@@ -463,7 +468,7 @@
         const isVisible = TARGET_VISIBLE_COLUMNS.includes(colName);
         return {
           wch: Math.max(colName.length + 5, 12),
-          hidden: !isVisible // Oculta nativamente en Excel
+          hidden: !isVisible // Oculta nativamente en Excel (fecha_gestion permanece oculta)
         };
       });
 
