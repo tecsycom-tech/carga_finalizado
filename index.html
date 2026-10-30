@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Procesador y Carga de Operaciones - PERÚFIBRA / TECSYCOM</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS para lectura y escritura de Excel / CSV -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body {
+      background-color: #f8fafc;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      height: 8px;
+      width: 8px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+  <!-- Encabezado / Navbar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="bg-blue-600 text-white p-2.5 rounded-lg shadow-md">
+          <i class="fa-solid fa-file-excel text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold text-slate-900 tracking-tight">Procesador de Carga Operativa</h1>
+          <p class="text-xs text-slate-500 font-medium">PERÚFIBRA &bull; TECSYCOM</p>
+        </div>
+      </div>
+      <div id="statusBadge" class="hidden items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+        <span class="w-2 h-2 rounded-full bg-slate-400 mr-2"></span> Esperando archivo
+      </div>
+    </div>
+  </header>
+
+  <!-- Contenido Principal -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+    <!-- Zona de Carga de Archivo (Dropzone) -->
+    <section class="bg-white rounded-xl border-2 border-dashed border-slate-300 p-8 text-center hover:border-blue-500 transition-colors cursor-pointer shadow-sm relative" id="dropZone">
+      <input type="file" id="fileInput" accept=".csv, .xlsx, .xls" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+      <div class="flex flex-col items-center justify-center space-y-3 pointer-events-none">
+        <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 text-2xl mb-1">
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+        </div>
+        <div>
+          <p class="text-base font-semibold text-slate-700">Arrastra tu archivo CSV o Excel aquí, o <span class="text-blue-600 underline">haz clic para examinar</span></p>
+          <p class="text-xs text-slate-400 mt-1">Soporta formatos .csv, .xlsx y .xls (AppSheet / ViewData)</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Indicador de Archivo Cargado y Estadísticas -->
+    <section id="metricsSection" class="hidden space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Filas Leídas</p>
+            <p id="totalRowsCount" class="text-2xl font-extrabold text-slate-800 mt-1">0</p>
+          </div>
+          <div class="text-slate-400 text-2xl"><i class="fa-solid fa-list-check"></i></div>
+        </div>
+
+        <div class="bg-white p-5 rounded-xl border border-emerald-200 shadow-sm flex items-center justify-between bg-emerald-50/30">
+          <div>
+            <p class="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Finalizados (Filtrados)</p>
+            <p id="finalizedRowsCount" class="text-2xl font-extrabold text-emerald-700 mt-1">0</p>
+          </div>
+          <div class="text-emerald-500 text-2xl"><i class="fa-solid fa-circle-check"></i></div>
+        </div>
+
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p class="text-xs font-semibold text-blue-600 uppercase tracking-wider">Columnas Visibles</p>
+            <p class="text-2xl font-extrabold text-blue-600 mt-1">18</p>
+          </div>
+          <div class="text-blue-500 text-2xl"><i class="fa-solid fa-eye"></i></div>
+        </div>
+
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Columnas Ocultas</p>
+            <p id="hiddenColsCount" class="text-2xl font-extrabold text-slate-500 mt-1">0</p>
+          </div>
+          <div class="text-slate-400 text-2xl"><i class="fa-solid fa-eye-slash"></i></div>
+        </div>
+
+      </div>
+
+      <!-- Barra de Acciones y Botón de Descarga -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div class="flex items-center space-x-3 w-full sm:w-auto">
+          <div class="relative flex-1 sm:w-80">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+            <input type="text" id="searchInput" placeholder="Buscar en resultados..." class="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+          </div>
+          <select id="columnFilterMode" class="text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 outline-none">
+            <option value="visible">Mostrar Solo 18 Visibles</option>
+            <option value="all">Mostrar Todas (Visibles + Ocultas)</option>
+          </select>
+        </div>
+
+        <button id="downloadBtn" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-2.5 rounded-lg shadow-md transition-colors flex items-center justify-center space-x-2">
+          <i class="fa-solid fa-file-arrow-down text-lg"></i>
+          <span>Descargar Excel (.xlsx)</span>
+        </button>
+      </div>
+
+      <!-- Tabla de Datos Procesados -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr id="tableHeader" class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 uppercase tracking-wider">
+                <!-- Dinámico -->
+              </tr>
+            </thead>
+            <tbody id="tableBody" class="divide-y divide-slate-200 text-slate-600">
+              <!-- Dinámico -->
+            </tbody>
+          </table>
+        </div>
+        <!-- Paginación -->
+        <div class="p-4 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs text-slate-500 bg-slate-50">
+          <span id="pageInfo">Mostrando 0 de 0 registros</span>
+          <div class="flex items-center space-x-2">
+            <button id="prevPageBtn" class="px-3 py-1.5 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-50">Anterior</button>
+            <button id="nextPageBtn" class="px-3 py-1.5 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-50">Siguiente</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Pie de Página -->
+  <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400">
+    PERÚFIBRA &bull; TECSYCOM &copy; 2026 - Herramienta de Generación de Carga Operativa
+  </footer>
+
+  <!-- Lógica en JavaScript -->
+  <script>
+    // Las 18 columnas requeridas visibles exactas
+    const TARGET_VISIBLE_COLUMNS = [
+      "id_contrato",
+      "fecha_programacion",
+      "cod_pedido",
+      "dni_cliente",
+      "nom_cliente",
+      "fec_programacion",
+      "direccion_cliente",
+      "Distrito_1",
+      "Paquete",
+      "cto1",
+      "cto2",
+      "cto3",
+      "Estado",
+      "Tecnico",
+      "Quantum",
+      "ONT",
+      "TIEMPO",
+      "BACK"
+    ];
+
+    // Mapeo de equivalencias de alias comunes hacia las columnas objetivo
+    const COLUMN_ALIASES = {
+      "valida_cod_pedido": "cod_pedido",
+      "Cuadrilla": "Tecnico",
+      "SN": "ONT",
+      "Datetime": "TIEMPO",
+      "IDoperacion": "Quantum",
+      "AppSheet_User": "BACK",
+      "Distrito": "Distrito_1",
+      "Campaña": "Paquete"
+    };
+
+    // Columnas obligatorias adicionales que los sistemas de validación suelen exigir
+    const MANDATORY_SYSTEM_COLUMNS = [
+      "tipo de validaciones",
+      "gestion diaria",
+      "distrito",
+      "tipo_alta"
+    ];
+
+    // Variables de Estado
+    let rawData = [];
+    let processedDataAll = [];
+    let finalizedData = [];
+    let allDetectedColumns = [];
+    let currentPage = 1;
+    const pageSize = 10;
+    let filteredRenderData = [];
+
+    // Referencias al DOM
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const metricsSection = document.getElementById('metricsSection');
+    const statusBadge = document.getElementById('statusBadge');
+    const totalRowsCount = document.getElementById('totalRowsCount');
+    const finalizedRowsCount = document.getElementById('finalizedRowsCount');
+    const hiddenColsCount = document.getElementById('hiddenColsCount');
+    const tableHeader = document.getElementById('tableHeader');
+    const tableBody = document.getElementById('tableBody');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const searchInput = document.getElementById('searchInput');
+    const columnFilterMode = document.getElementById('columnFilterMode');
+    const prevPageBtn = document.getElementById('prevPageBtn');
+    const nextPageBtn = document.getElementById('nextPageBtn');
+    const pageInfo = document.getElementById('pageInfo');
+
+    // Eventos de archivo
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) processFile(e.target.files[0]);
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.add('border-blue-500', 'bg-blue-50/20');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-blue-500', 'bg-blue-50/20');
+      });
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      if (dt.files.length > 0) processFile(dt.files[0]);
+    });
+
+    // Leer y procesar el archivo subido
+    function processFile(file) {
+      updateStatus('Procesando archivo...', 'bg-amber-100 text-amber-700 border-amber-300', 'fa-spinner fa-spin');
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array', cellDates: true, raw: false });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          
+          rawData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+          
+          if (!rawData || rawData.length === 0) {
+            alert('El archivo cargado no contiene registros válidos.');
+            updateStatus('Error en archivo', 'bg-red-100 text-red-700 border-red-300', 'fa-circle-xmark');
+            return;
+          }
+
+          processColumnsAndData();
+          updateStatus('Procesado con éxito', 'bg-emerald-100 text-emerald-700 border-emerald-300', 'fa-circle-check');
+        } catch (err) {
+          console.error(err);
+          alert('Hubo un error al leer el archivo. Asegúrate de que sea un archivo CSV o Excel válido.');
+          updateStatus('Error al leer', 'bg-red-100 text-red-700 border-red-300', 'fa-circle-xmark');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function updateStatus(text, classes, icon) {
+      statusBadge.className = `flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${classes}`;
+      statusBadge.innerHTML = `<i class="fa-solid ${icon} mr-2"></i> ${text}`;
+    }
+
+    // Normalización y Estructuración de Columnas
+    function processColumnsAndData() {
+      // 1. Obtener todas las columnas originales del archivo
+      const originalHeaderSet = new Set();
+      rawData.forEach(row => {
+        Object.keys(row).forEach(k => {
+          const cleanK = k.replace(/^\uFEFF/, '').trim().replace(/^"|"$/g, '');
+          if (cleanK) originalHeaderSet.add(cleanK);
+        });
+      });
+
+      let originalHeaders = Array.from(originalHeaderSet);
+      let existingHeaderNamesLower = new Set(originalHeaders.map(h => h.toLowerCase()));
+
+      // 2. Construir la lista final asegurando que existan las obligatorias del sistema
+      let finalHeaderList = [...TARGET_VISIBLE_COLUMNS];
+      let existingTargetNames = new Set(TARGET_VISIBLE_COLUMNS.map(c => c.toLowerCase()));
+
+      // Añadir columnas originales que no estén en las 18 principales
+      originalHeaders.forEach(origH => {
+        const lowerOrig = origH.toLowerCase();
+        let isAlias = Object.keys(COLUMN_ALIASES).some(alias => alias.toLowerCase() === lowerOrig);
+        if (!existingTargetNames.has(lowerOrig) && !isAlias) {
+          finalHeaderList.push(origH);
+        }
+      });
+
+      // Asegurar que las columnas obligatorias del sistema estén presentes (si no venían, se crean)
+      MANDATORY_SYSTEM_COLUMNS.forEach(mandCol => {
+        if (!originalHeaders.some(h => h.toLowerCase() === mandCol.toLowerCase())) {
+          finalHeaderList.push(mandCol);
+        }
+      });
+
+      allDetectedColumns = finalHeaderList;
+
+      // 3. Mapear datos por fila
+      processedDataAll = rawData.map(row => {
+        let newRow = {};
+        let cleanRow = {};
+        Object.keys(row).forEach(k => {
+          const cleanKey = k.replace(/^\uFEFF/, '').trim().replace(/^"|"$/g, '');
+          cleanRow[cleanKey] = row[k];
+        });
+
+        allDetectedColumns.forEach(col => {
+          if (cleanRow[col] !== undefined && cleanRow[col] !== null && String(cleanRow[col]).trim() !== "") {
+            newRow[col] = String(cleanRow[col]).trim();
+          } else if (TARGET_VISIBLE_COLUMNS.includes(col)) {
+            let foundVal = "";
+            for (let [alias, targetCol] of Object.entries(COLUMN_ALIASES)) {
+              if (targetCol === col && cleanRow[alias] !== undefined && cleanRow[alias] !== null) {
+                foundVal = String(cleanRow[alias]).trim();
+                break;
+              }
+            }
+            if (!foundVal && col === "fec_programacion" && cleanRow["fecha_programacion"]) {
+              foundVal = String(cleanRow["fecha_programacion"]).trim();
+            }
+            newRow[col] = foundVal;
+          } else {
+            let origMatch = originalHeaders.find(oh => oh.toLowerCase() === col.toLowerCase());
+            newRow[col] = origMatch && cleanRow[origMatch] !== undefined ? String(cleanRow[origMatch]).trim() : "";
+          }
+        });
+
+        return newRow;
+      });
+
+      // 4. Filtrar estrictamente por Estado = "FINALIZADO"
+      finalizedData = processedDataAll.filter(row => {
+        const estadoVal = (row["Estado"] || "").toString().trim().toUpperCase();
+        return estadoVal === "FINALIZADO";
+      });
+
+      // Actualizar Contadores
+      totalRowsCount.textContent = rawData.length;
+      finalizedRowsCount.textContent = finalizedData.length;
+      hiddenColsCount.textContent = Math.max(0, allDetectedColumns.length - 18);
+
+      metricsSection.classList.remove('hidden');
+      currentPage = 1;
+      applyTableFilter();
+    }
+
+    function applyTableFilter() {
+      const query = searchInput.value.toLowerCase().trim();
+      if (!query) {
+        filteredRenderData = [...finalizedData];
+      } else {
+        filteredRenderData = finalizedData.filter(row => {
+          return Object.values(row).some(val => String(val).toLowerCase().includes(query));
+        });
+      }
+      renderTable();
+    }
+
+    function renderTable() {
+      const mode = columnFilterMode.value;
+      let displayCols = mode === 'visible' ? TARGET_VISIBLE_COLUMNS : allDetectedColumns;
+
+      tableHeader.innerHTML = displayCols.map(col => {
+        const isTarget = TARGET_VISIBLE_COLUMNS.includes(col);
+        const badge = isTarget 
+          ? `<span class="bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded ml-1 font-semibold">VISIBLE</span>` 
+          : `<span class="bg-slate-200 text-slate-600 text-[10px] px-1.5 py-0.5 rounded ml-1 font-semibold">OCULTA</span>`;
+
+        return `
+          <th class="px-3 py-3 whitespace-nowrap">
+            <div class="flex items-center space-x-1">
+              <span>${col}</span>
+              ${mode === 'all' ? badge : ''}
+            </div>
+          </th>
+        `;
+      }).join('');
+
+      const totalRecords = filteredRenderData.length;
+      const totalPages = Math.ceil(totalRecords / pageSize) || 1;
+      if (currentPage > totalPages) currentPage = totalPages;
+
+      const startIndex = (currentPage - 1) * pageSize;
+      const pageData = filteredRenderData.slice(startIndex, startIndex + pageSize);
+
+      if (pageData.length === 0) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="${displayCols.length}" class="text-center py-8 text-slate-400">
+              No se encontraron registros finalizados.
+            </td>
+          </tr>
+        `;
+      } else {
+        tableBody.innerHTML = pageData.map(row => {
+          return `
+            <tr class="hover:bg-slate-50 transition-colors">
+              ${displayCols.map(col => `
+                <td class="px-3 py-2.5 whitespace-nowrap border-b border-slate-100 max-w-xs truncate" title="${row[col] || ''}">
+                  ${row[col] || '<span class="text-slate-300">-</span>'}
+                </td>
+              `).join('')}
+            </tr>
+          `;
+        }).join('');
+      }
+
+      pageInfo.textContent = `Mostrando ${totalRecords > 0 ? startIndex + 1 : 0} a ${Math.min(startIndex + pageSize, totalRecords)} de ${totalRecords} registros (Filtrados por Estado='FINALIZADO')`;
+      prevPageBtn.disabled = currentPage === 1;
+      nextPageBtn.disabled = currentPage === totalPages || totalPages === 0;
+    }
+
+    searchInput.addEventListener('input', () => { currentPage = 1; applyTableFilter(); });
+    columnFilterMode.addEventListener('change', () => { renderTable(); });
+    prevPageBtn.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderTable(); } });
+    nextPageBtn.addEventListener('click', () => {
+      const totalPages = Math.ceil(filteredRenderData.length / pageSize);
+      if (currentPage < totalPages) { currentPage++; renderTable(); }
+    });
+
+    // GENERAR Y DESCARGAR EXCEL CON COLUMNAS OCULTAS EXACTAS
+    downloadBtn.addEventListener('click', () => {
+      if (!finalizedData || finalizedData.length === 0) {
+        alert('No hay registros finalizados para exportar.');
+        return;
+      }
+
+      const ws = XLSX.utils.json_to_sheet(finalizedData, { header: allDetectedColumns });
+
+      const colsProperties = allDetectedColumns.map(colName => {
+        const isVisible = TARGET_VISIBLE_COLUMNS.includes(colName);
+        return {
+          wch: Math.max(colName.length + 5, 12),
+          hidden: !isVisible // Oculta nativamente en Excel
+        };
+      });
+
+      ws['!cols'] = colsProperties;
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+
+      const timestamp = new Date().toISOString().slice(0, 10).split('-').reverse().join('-');
+      const timeStr = new Date().toTimeString().slice(0, 5).replace(':', '-');
+      const filename = `CARGA_QODIFICA_${timestamp}_${timeStr}.xlsx`;
+
+      XLSX.writeFile(wb, filename);
+    });
+  </script>
+</body>
+</html>
